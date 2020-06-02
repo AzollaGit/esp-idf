@@ -9,6 +9,8 @@
 #ifndef _BLE_MESH_DEMO_INIT_H_
 #define _BLE_MESH_DEMO_INIT_H_
 
+//#include <build/config/sdkconfig.h>
+
 #define TAG "ble_mesh_provisioner"
 
 void ble_mesh_get_dev_uuid(uint8_t *dev_uuid);

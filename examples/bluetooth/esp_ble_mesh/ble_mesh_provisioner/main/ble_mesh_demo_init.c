@@ -9,6 +9,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <sdkconfig.h>
+
+#include "esp_ble_mesh_defs.h"
+#include "ble_mesh_demo_init.h"
+#include "esp_ble_mesh_common_api.h"
+
+#define CONFIG_BT_BLUEDROID_ENABLED  1
+
 /* BLE */
 #ifdef CONFIG_BT_BLUEDROID_ENABLED
 #include "esp_bt.h"
@@ -25,9 +32,7 @@
 #include "console/console.h"
 #endif
 
-#include "esp_ble_mesh_defs.h"
-#include "ble_mesh_demo_init.h"
-#include "esp_ble_mesh_common_api.h"
+
 
 #ifdef CONFIG_BT_BLUEDROID_ENABLED
 

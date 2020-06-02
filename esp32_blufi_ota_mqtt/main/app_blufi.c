@@ -28,6 +28,7 @@
 #include "esp_event_loop.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "sdkconfig.h"
 #include "esp_bt.h"
  
 #include "esp_blufi_api.h"
@@ -35,7 +36,9 @@
 #include "esp_gap_ble_api.h"
 #include "esp_bt_main.h"
 #include "esp_bt_device.h"
-#include "blufi_example.h"
+
+#include "app_blufi.h"
+#include "app_https_ota.h"
 
 static void example_event_callback(esp_blufi_cb_event_t event, esp_blufi_cb_param_t *param);
 
@@ -104,8 +107,6 @@ static esp_err_t example_net_event_handler(void *ctx, system_event_t *event)
 {
     wifi_mode_t mode;
 
-    //system_event = event;   // 得到事件
-
     switch (event->event_id) {
     case SYSTEM_EVENT_STA_START:
         esp_wifi_connect();
@@ -129,6 +130,9 @@ static esp_err_t example_net_event_handler(void *ctx, system_event_t *event)
         } else {
             BLUFI_INFO("BLUFI BLE is not connected yet\n");
         }
+
+        //app_https_ota_init();       // 连接上wifi之后，进行https ota 固件升级！
+
         break;
     }
     case SYSTEM_EVENT_STA_CONNECTED:
@@ -452,18 +456,9 @@ void blufi_init(void)
     esp_blufi_profile_init();
 }
 
-void app_main()
+// blufi 配网；
+void app_blufi_init()
 {
-    esp_err_t ret;
-
-    // Initialize NVS
-    ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK( ret );
-
     initialise_wifi();
 
     /* 以下代码：增加了连接WIFI超时判断，如果超时，则调用blufi进行配网! */
@@ -472,12 +467,14 @@ void app_main()
         if (sta_got_ip_event == true) {
             break;
         }
-        bulfi_init_timeout++;  printf("bulfi_init_timeout = %d\r\n", bulfi_init_timeout);
+        BLUFI_INFO("wifi connect timeout = %ds\r\n", bulfi_init_timeout++);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
     if (sta_got_ip_event != true) {   // 如果没有连接上了wifi
         printf("blufi init...");
         blufi_init();   // 开启配网
+    } else {
+       // app_https_ota_init();       // 连接上wifi之后，进行https ota 固件升级！
     }
-
+    return;
 }

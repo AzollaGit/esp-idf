@@ -21,13 +21,15 @@
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 
+#include "app_https_ota.h"
+
 #if CONFIG_EXAMPLE_CONNECT_WIFI
 #include "esp_wifi.h"
 #endif
 
-static const char *TAG = "advanced_https_ota_example";
+static const char *TAG = "APP_HTTPS_OTA";
 extern const uint8_t server_cert_pem_start[] asm("_binary_ca_cert_pem_start");
-extern const uint8_t server_cert_pem_end[] asm("_binary_ca_cert_pem_end");
+extern const uint8_t server_cert_pem_end[]   asm("_binary_ca_cert_pem_end");
 
 #define OTA_URL_SIZE 256
 
@@ -56,11 +58,10 @@ static esp_err_t validate_image_header(esp_app_desc_t *new_app_info)
 
 void advanced_ota_example_task(void *pvParameter)
 {
-    ESP_LOGI(TAG, "Starting Advanced OTA example");
-#define CONFIG_EXAMPLE_FIRMWARE_UPGRADE_URL "https://192.168.43.22:8070/advanced_https_ota.bin"
+    ESP_LOGI(TAG, "Starting Https OTA...");
     esp_err_t ota_finish_err = ESP_OK;
     esp_http_client_config_t config = {
-        .url = CONFIG_EXAMPLE_FIRMWARE_UPGRADE_URL,
+        .url = "https://192.168.43.22:8070/esp32_project.bin", // CONFIG_EXAMPLE_FIRMWARE_UPGRADE_URL
         .cert_pem = (char *)server_cert_pem_start,
         .timeout_ms = CONFIG_EXAMPLE_OTA_RECV_TIMEOUT,
     };
@@ -106,7 +107,10 @@ void advanced_ota_example_task(void *pvParameter)
         goto ota_end;
     }
 
+    ESP_LOGI(TAG, "Starting HTTPS OTA received firmware...");
+
     while (1) {
+         
         err = esp_https_ota_perform(https_ota_handle);
         if (err != ESP_ERR_HTTPS_OTA_IN_PROGRESS) {
             break;
@@ -114,7 +118,9 @@ void advanced_ota_example_task(void *pvParameter)
         // esp_https_ota_perform returns after every read operation which gives user the ability to
         // monitor the status of OTA upgrade by calling esp_https_ota_get_image_len_read, which gives length of image
         // data read so far.
+        #if 0
         ESP_LOGD(TAG, "Image bytes read: %d", esp_https_ota_get_image_len_read(https_ota_handle));
+        #endif
     }
 
     if (esp_https_ota_is_complete_data_received(https_ota_handle) != true) {
@@ -137,37 +143,8 @@ ota_end:
     }
 }
 
-void app_main()
+void app_https_ota_init(void)
 {
-    // Initialize NVS.
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        // 1.OTA app partition table has a smaller NVS partition size than the non-OTA
-        // partition table. This size mismatch may cause NVS initialization to fail.
-        // 2.NVS partition contains data in new format and cannot be recognized by this version of code.
-        // If this happens, we erase NVS partition and initialize NVS again.
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK( err );
-
-    tcpip_adapter_init();
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-    /* This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
-     * Read "Establishing Wi-Fi or Ethernet Connection" section in
-     * examples/protocols/README.md for more information about this function.
-    */
-    ESP_ERROR_CHECK(example_connect());
-
-#if CONFIG_EXAMPLE_CONNECT_WIFI
-    /* Ensure to disable any WiFi power save mode, this allows best throughput
-     * and hence timings for overall OTA operation.
-     */
-    esp_wifi_set_ps(WIFI_PS_NONE);
-#endif // CONFIG_EXAMPLE_CONNECT_WIFI
- 
     xTaskCreate(&advanced_ota_example_task, "advanced_ota_example_task", 1024 * 8, NULL, 5, NULL);
 }
 
-// cd examples/system/ota/advanced_https_ota/

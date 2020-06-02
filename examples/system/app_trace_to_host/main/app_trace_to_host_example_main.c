@@ -119,3 +119,4 @@ void app_main()
     }
 }
 
+// cd examples/system/ota/advanced_https_ota/
