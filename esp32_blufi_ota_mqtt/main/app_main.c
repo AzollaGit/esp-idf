@@ -39,7 +39,7 @@ void app_main()
     }
     ESP_ERROR_CHECK( err );
 
-#if 0   // 使用 idf.py menuconfig 配置进行联网！
+#if 1   // 使用 idf.py menuconfig 配置进行联网！
     tcpip_adapter_init();
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     ESP_ERROR_CHECK(example_connect());
@@ -47,8 +47,8 @@ void app_main()
     app_blufi_init();
 #endif
     app_https_ota_init();       // 连接上wifi之后，进行https ota 固件升级！
-
-    app_socket_server_init();
+ 
+    //app_socket_server_init();
 
 }
 

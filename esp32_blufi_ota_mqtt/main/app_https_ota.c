@@ -61,7 +61,7 @@ void advanced_ota_example_task(void *pvParameter)
     ESP_LOGI(TAG, "Starting Https OTA...");
     esp_err_t ota_finish_err = ESP_OK;
     esp_http_client_config_t config = {
-        .url = "https://192.168.43.22:8070/esp32_project.bin", // CONFIG_EXAMPLE_FIRMWARE_UPGRADE_URL
+        .url = "https://iot.qinyun575.cn/esp_ota/esp32_project.bin", // CONFIG_EXAMPLE_FIRMWARE_UPGRADE_URL
         .cert_pem = (char *)server_cert_pem_start,
         .timeout_ms = CONFIG_EXAMPLE_OTA_RECV_TIMEOUT,
     };
