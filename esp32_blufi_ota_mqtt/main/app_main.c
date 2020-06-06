@@ -19,11 +19,14 @@
 #include "esp_https_ota.h"
 #include "nvs.h"
 #include "nvs_flash.h"
+#include "esp_log.h"
 #include "protocol_examples_common.h"
 
 #include "app_https_ota.h"
 #include "app_blufi.h"
 #include "app_mqtt.h"
+
+static const char *TAG = "APP_MAIN";
 
 void app_main()
 {
@@ -39,6 +42,10 @@ void app_main()
     }
     ESP_ERROR_CHECK( err );
 
+    ESP_LOGI(TAG, "Startup..");
+    ESP_LOGI(TAG, "Free memory: %d bytes", esp_get_free_heap_size());
+    ESP_LOGI(TAG, "IDF version: %s", esp_get_idf_version());
+
 #if 1   // 使用 idf.py menuconfig 配置进行联网！
     tcpip_adapter_init();
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -47,8 +54,8 @@ void app_main()
     app_blufi_init();
 #endif
     app_https_ota_init();       // 连接上wifi之后，进行https ota 固件升级！
- 
-    //app_socket_server_init();
+
+    app_mqtt_init(); 
 
 }
 

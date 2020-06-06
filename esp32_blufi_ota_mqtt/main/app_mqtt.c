@@ -1,138 +1,146 @@
-#include "lwip/err.h"
-#include "lwip/sockets.h"
-#include "lwip/sys.h"
-#include <lwip/netdb.h>
-#include <esp_log.h>
+/* MQTT (over TCP) Example
+
+   This example code is in the Public Domain (or CC0 licensed, at your option.)
+
+   Unless required by applicable law or agreed to in writing, this
+   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+   CONDITIONS OF ANY KIND, either express or implied.
+*/
+
+#include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <string.h>
-#include <errno.h>
-#include "sdkconfig.h"
+#include "esp_wifi.h"
+#include "esp_system.h"
+#include "nvs_flash.h"
+#include "esp_event.h"
+#include "tcpip_adapter.h"
+#include "protocol_examples_common.h"
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "driver/gpio.h"
+#include "freertos/semphr.h"
+#include "freertos/queue.h"
 
-#include "app_mqtt.h"
+#include "lwip/sockets.h"
+#include "lwip/dns.h"
+#include "lwip/netdb.h"
+
+#include "esp_log.h"
+#include "mqtt_client.h"
+
+static const char *TAG = "APP_MQTT";
 
 
-#define PORT_NUMBER 6000
-
-
-#define LED0_IO    2
-#define LED1_IO    4
-#define LED_PIN_SEL  ((1ULL<<LED0_IO) | (1ULL<<LED1_IO))
-
-static const char *TAG = "socket_server";
-
-/**
- * Create a listening socket.  We then wait for a client to connect.
- * Once a client has connected, we then read until there is no more data
- * and log the data read.  We then close the client socket and start
- * waiting for a new connection.
- */
-void socket_server_task(void *ignore)
+static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 {
-	struct sockaddr_in clientSocketAddr;
-	struct sockaddr_in serverSocketAddr;
+    esp_mqtt_client_handle_t client = event->client;
+    int msg_id;
+    // your_context_t *context = event->context;
+    switch (event->event_id) {
+        case MQTT_EVENT_CONNECTED:
+            ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
+            msg_id = esp_mqtt_client_publish(client, "topic_qos1", "data_3", 0, 1, 0);
+            ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
 
-	// Create a socket that we will listen upon.
-	int sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (sock < 0) {
-		ESP_LOGE(TAG, "socket: %d %s", sock, strerror(errno));
-		goto END;
-	} 
-    //#define HOST_IP          ((u32_t)0xC0A82802UL)  /** 192.168.43.2 */
-	// Bind our server socket to a port.
-	serverSocketAddr.sin_family = AF_INET;
-	serverSocketAddr.sin_addr.s_addr = htonl(INADDR_ANY);  // 使用WIFI IPv4 address: 192.168.43.21 
-	serverSocketAddr.sin_port = htons(PORT_NUMBER);
-	int rc  = bind(sock, (struct sockaddr *)&serverSocketAddr, sizeof(serverSocketAddr));
-	if (rc < 0) {
-		ESP_LOGE(TAG, "bind: %d %s", rc, strerror(errno));
-		goto END;
-	}
+            msg_id = esp_mqtt_client_subscribe(client, "topic_qos0", 0);
+            ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
 
-	// Flag the socket as listening for new connections.
-	rc = listen(sock, 5);
-	if (rc < 0) {
-		ESP_LOGE(TAG, "listen: %d %s", rc, strerror(errno));
-		goto END;
-	}
+            // msg_id = esp_mqtt_client_subscribe(client, "/topic/qos1", 1);
+            // ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
 
-    ESP_LOGI(TAG, "socket server init ok!");
+            // msg_id = esp_mqtt_client_unsubscribe(client, "/topic/qos1");
+            // ESP_LOGI(TAG, "sent unsubscribe successful, msg_id=%d", msg_id);
+            break;
+        case MQTT_EVENT_DISCONNECTED:
+            ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
+            break;
 
-	while (1) {
-		// Listen for a new client connection.
-		socklen_t clientSocketAddrLength = sizeof(clientSocketAddr);
-		int clientSock = accept(sock, (struct sockaddr *)&clientSocketAddr, &clientSocketAddrLength);
-		if (clientSock < 0) {
-			ESP_LOGE(TAG, "accept: %d %s", clientSock, strerror(errno));
-			goto END;
-		} 
+        case MQTT_EVENT_SUBSCRIBED:
+            ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
+            msg_id = esp_mqtt_client_publish(client, "topic_qos0", "data", 0, 0, 0);
+            ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+            break;
+        case MQTT_EVENT_UNSUBSCRIBED:
+            ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+            break;
+        case MQTT_EVENT_PUBLISHED:
+            ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+            break;
+        case MQTT_EVENT_DATA:
+            ESP_LOGI(TAG, "MQTT_EVENT_DATA");
+            printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
+            printf("DATA=%.*s\r\n", event->data_len, event->data);
+            break;
+        case MQTT_EVENT_ERROR:
+            ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
+            break;
+        default:
+            ESP_LOGI(TAG, "Other event id:%d", event->event_id);
+            break;
+    }
+    return ESP_OK;
+}
 
-        ESP_LOGI(TAG, "clientSock connect ip: %d  port: %d", clientSocketAddr.sin_addr.s_addr, clientSocketAddr.sin_port);
+static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
+    ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%d", base, event_id);
+    mqtt_event_handler_cb(event_data);
+}
 
-		// We now have a new client ...
-		int  recMaxSize = 64;
-		uint8_t *recData = malloc(recMaxSize);
-        memset(recData, 0, recMaxSize);
+static void mqtt_app_start(void)
+{
+    // esp_mqtt_client_config_t mqtt_cfg = {
+    //     .uri = "https://emq.qinyun575.cn/",   // CONFIG_BROKER_URL
+    // };
+    esp_mqtt_client_config_t mqtt_cfg = {
+        .host = "emq.qinyun575.cn",
+        .port = 1883,
+        .username = "Azolla",
+        .password = "Azolla.EMQ",
+    };
 
-		// Loop reading data.
-		while(1) {
-			ssize_t recSize = recv(clientSock, recData, recMaxSize, 0);
-			if (recSize < 0) {
-				ESP_LOGE(TAG, "recv: %d %s", recSize, strerror(errno));
-				goto END;
-			} else if (recSize == 0) {
-				break;
-			} else {
-                // Finished reading revData.
-		        ESP_LOGI(TAG, "recData (size: %d) was: %s", recSize, recData);
-                if (memcmp(recData, "OFF0", recSize) == 0) {
-                    gpio_set_level(LED0_IO, 0);
-                } else if (memcmp(recData, "ON0", recSize) == 0) {
-                    gpio_set_level(LED0_IO, 1);
-                } else if (memcmp(recData, "OFF1", recSize) == 0) {
-                    gpio_set_level(LED1_IO, 0);
-                } else if (memcmp(recData, "ON1", recSize) == 0) {
-                    gpio_set_level(LED1_IO, 1);
-                } 
-				send(clientSock, recData, recSize, 0);
-                memset(recData, 0, recSize);
+#if CONFIG_BROKER_URL_FROM_STDIN
+    char line[128];
+
+    if (strcmp(mqtt_cfg.uri, "FROM_STDIN") == 0) {
+        int count = 0;
+        printf("Please enter url of mqtt broker\n");
+        while (count < 128) {
+            int c = fgetc(stdin);
+            if (c == '\n') {
+                line[count] = '\0';
+                break;
+            } else if (c > 0 && c < 127) {
+                line[count] = c;
+                ++count;
             }
-            vTaskDelay(100 / portTICK_PERIOD_MS);
-		}
-        ESP_LOGI(TAG, "clientSock disconnect...");
-		free(recData);
-		close(clientSock);
-	}
-	END:
-	vTaskDelete(NULL);
-	esp_restart();		// 如果TCP异常了，直接复位。
+            vTaskDelay(10 / portTICK_PERIOD_MS);
+        }
+        mqtt_cfg.uri = line;
+        printf("Broker url: %s\n", line);
+    } else {
+        ESP_LOGE(TAG, "Configuration mismatch: wrong broker url");
+        abort();
+    }
+#endif /* CONFIG_BROKER_URL_FROM_STDIN */
+
+    esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
+    esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, client);
+    esp_mqtt_client_start(client);
 }
 
-void app_led_init(void)
+void app_mqtt_init(void)
 {
-    gpio_config_t io_conf;
-    //disable interrupt
-    io_conf.intr_type = GPIO_PIN_INTR_DISABLE;
-    //set as output mode
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    //bit mask of the pins that you want to set,e.g.GPIO18/19
-    io_conf.pin_bit_mask = LED_PIN_SEL;
-    //disable pull-down mode
-    io_conf.pull_down_en = 0;
-    //disable pull-up mode
-    io_conf.pull_up_en = 0;
-    //configure GPIO with the given settings
-    gpio_config(&io_conf);
+	ESP_LOGI(TAG, "APP MQTT Startup..");
 
-    gpio_set_level(LED0_IO, 1);
-    gpio_set_level(LED1_IO, 0);
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("MQTT_CLIENT", ESP_LOG_VERBOSE);
+    esp_log_level_set("MQTT_EXAMPLE", ESP_LOG_VERBOSE);
+    esp_log_level_set("TRANSPORT_TCP", ESP_LOG_VERBOSE);
+    esp_log_level_set("TRANSPORT_SSL", ESP_LOG_VERBOSE);
+    esp_log_level_set("TRANSPORT", ESP_LOG_VERBOSE);
+    esp_log_level_set("OUTBOX", ESP_LOG_VERBOSE);
 
+    mqtt_app_start();
 }
-
-void app_socket_server_init(void)
-{
-    app_led_init();
-    xTaskCreate(&socket_server_task, "socket_server_task", 1024*2, NULL, 6, NULL);
-}
-

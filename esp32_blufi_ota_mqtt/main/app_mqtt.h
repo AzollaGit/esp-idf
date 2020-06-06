@@ -2,6 +2,6 @@
 
 #include "stdint.h"
 
-void app_socket_server_init(void);
+void app_mqtt_init(void);
 
 
