@@ -25,6 +25,8 @@
 #include "app_https_ota.h"
 #include "app_blufi.h"
 #include "app_mqtt.h"
+#include "app_touch.h"
+#include "app_user.h"
 
 static const char *TAG = "APP_MAIN";
 
@@ -53,9 +55,14 @@ void app_main()
 #else   // 使用 blufi 配网！
     app_blufi_init();
 #endif
+#if 0   // 使用 OTA ? (外设调试，建议先屏蔽网络代码！)
     app_https_ota_init();       // 连接上wifi之后，进行https ota 固件升级！
+#endif
 
     app_mqtt_init(); 
 
+    app_touch_init();
+
+    app_user_init();
 }
 
