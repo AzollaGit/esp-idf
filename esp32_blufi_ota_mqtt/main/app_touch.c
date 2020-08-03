@@ -73,17 +73,37 @@ static void tp_example_set_thresholds(void)
  */
 static void tp_example_read_task(void *pvParameter)
 {
-    static uint16_t duty = 0;
+    static bool state = 0;
+    static uint16_t touch_value = 0;
     while (1) {
         
         for (int i = 0; i < TOUCH_PAD_MAX; i++) {
             if (s_pad_activated[i] == true) {
-                ESP_LOGI(TAG, "T%d activated!", i);
+                if (!(touch_value & (1 << i))) {
+                    ESP_LOGI(TAG, "T%d activated!", i);
+                    touch_value |= (1 << i);
+                    switch (i) {    // 把通道转化一下
+                    case 4: i = 4; break;
+                    case 5: i = 2; break;
+                    case 6: i = 1; break;
+                    case 7: i = 3; break;
+                    }
+
+                    ESP_LOGI(TAG, "channel = %d", i);
+
+                    app_bell_contorl(1024/2);
+
+                    lightChannelValue ^= (1 << i);
+                    bool state = (lightChannelValue & (1 << i)) ? 1 : 0;
+                    app_relay_contorl(i - 1, state);
+                    vTaskDelay(200 / portTICK_PERIOD_MS);
+                 
+                    app_bell_contorl(1024);
+                }
                 // Clear information on pad activation
                 s_pad_activated[i] = false;
-                app_bell_contorl(duty);
-                duty += 50;
-                if (duty > 1024) duty = 0;
+            } else {
+                touch_value &= ~(1<<i);
             }
         }
         

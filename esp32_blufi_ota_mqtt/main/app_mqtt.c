@@ -30,6 +30,8 @@
 #include "esp_log.h"
 #include "mqtt_client.h"
 
+#include "app_user.h"
+
 static const char *TAG = "APP_MQTT";
 
 
@@ -44,7 +46,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
             msg_id = esp_mqtt_client_publish(client, "topic_qos1", "data_3", 0, 1, 0);
             ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
 
-            msg_id = esp_mqtt_client_subscribe(client, "topic_qos0", 0);
+            msg_id = esp_mqtt_client_subscribe(client, "light", 0);
             ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
 
             // msg_id = esp_mqtt_client_subscribe(client, "/topic/qos1", 1);
@@ -59,7 +61,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 
         case MQTT_EVENT_SUBSCRIBED:
             ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
-            msg_id = esp_mqtt_client_publish(client, "topic_qos0", "data", 0, 0, 0);
+            msg_id = esp_mqtt_client_publish(client, "light", "data", 0, 0, 0);
             ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
             break;
         case MQTT_EVENT_UNSUBSCRIBED:
@@ -72,6 +74,19 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
             ESP_LOGI(TAG, "MQTT_EVENT_DATA");
             printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
             printf("DATA=%.*s\r\n", event->data_len, event->data);
+            if (strcmp(event->topic, "light") >= 0) {   
+                uint8_t channel = event->data[0]&0x0F;
+                bool state = event->data[2]&0x0F;
+                if (state) {
+                    lightChannelValue |= (1 << channel);
+                } else {
+                    lightChannelValue &= ~(1 << channel);
+                }
+                app_relay_contorl(channel - 1, state);
+            } else {
+                printf("topic error... \r\n");
+            }
+            
             break;
         case MQTT_EVENT_ERROR:
             ESP_LOGI(TAG, "MQTT_EVENT_ERROR");

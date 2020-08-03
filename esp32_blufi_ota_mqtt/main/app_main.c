@@ -48,6 +48,10 @@ void app_main()
     ESP_LOGI(TAG, "Free memory: %d bytes", esp_get_free_heap_size());
     ESP_LOGI(TAG, "IDF version: %s", esp_get_idf_version());
 
+    app_touch_init();
+
+    app_user_init();
+
 #if 1   // 使用 idf.py menuconfig 配置进行联网！
     tcpip_adapter_init();
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -61,8 +65,6 @@ void app_main()
 
     app_mqtt_init(); 
 
-    app_touch_init();
 
-    app_user_init();
 }
 

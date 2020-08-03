@@ -11,6 +11,8 @@
 
 #include "app_user.h"
 
+uint16_t lightChannelValue;
+
 
 /******************************************************************************************************
  *                                          Bell->PWM 配置                                 
@@ -91,10 +93,10 @@ void app_bell_init(void)
  *                                          LED 配置                                 
  ******************************************************************************************************/
 
-#define LED1_IO    GPIO_NUM_26
-#define LED2_IO    GPIO_NUM_25
-#define LED3_IO    GPIO_NUM_33
-#define LED4_IO    GPIO_NUM_32
+#define LED1_IO    GPIO_NUM_32
+#define LED2_IO    GPIO_NUM_33
+#define LED3_IO    GPIO_NUM_25
+#define LED4_IO    GPIO_NUM_26
 
 #define LED_PIN_SEL  ((1ULL<<LED1_IO) | (1ULL<<LED2_IO) | (1ULL<<LED3_IO) | (1ULL<<LED4_IO))
 
@@ -186,6 +188,11 @@ void app_relay_contorl(uint8_t channel, bool state)
     }
 
     app_led_contorl(channel, !state);   // 因为LED与Relay控制电平是反的
+}
+
+void app_light_contorl()
+{
+
 }
 
 void app_relay_init(void)
